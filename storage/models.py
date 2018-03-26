@@ -16,7 +16,10 @@ class TaobaoShop(models.Model):
         return self.url
 
     def get_list_url(self):
-        return self.url+'search.htm'
+        if 'taobao' in self.url:
+            return self.url + 'search.htm'
+        elif 'tmall' in self.url:
+            return self.url + 'category.htm'
 
 
 class TaobaoItem(models.Model):

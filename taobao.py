@@ -2,13 +2,12 @@ from time import sleep
 from random import uniform
 import os, sys, requests, re, traceback
 
-from selenium.webdriver.firefox.webdriver import WebDriver as Firefox
-from selenium.webdriver.firefox.options import Options as FirefoxOptions
+from selenium.webdriver.chrome.webdriver import WebDriver as Chrome
+from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.common.keys import Keys
 
 from django import setup
 from django.utils import timezone
-from django.core.mail import send_mail
 
 if __name__ == "__main__":
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "storage.settings")
@@ -26,9 +25,9 @@ def rest(rest=(3, 7)):
 class TaoBaoVisitor():
     '浏览淘宝网'
     def __init__(self):
-        firefox_options = FirefoxOptions()
-        firefox_options.set_headless()
-        self.driver = Firefox(firefox_options=firefox_options)
+        chrome_options = ChromeOptions()
+        chrome_options.set_headless()
+        self.driver = Chrome(chrome_options=chrome_options)
         self.driver.implicitly_wait(5)
         self.shops = None
 
@@ -47,10 +46,10 @@ class TaoBaoVisitor():
         if not self.shops:
             self.shops = self.get_shops()
         for shop in self.shops:
-            shop_items_url = shop.get_list_url()
-            if 'taobao' in shop_items_url:
+            shop_url = shop.url
+            if 'taobao' in shop_url:
                 self.get_taobao_shop_items(shop)
-            elif 'tmall' in shop_items_url:
+            elif 'tmall' in shop_url:
                 self.get_tmall_shop_items(shop)
             rest([180, 420])
 
@@ -70,24 +69,25 @@ class TaoBaoVisitor():
             items = shop_search_result.find_elements_by_css_selector('.item')
             self.collect_item_datas(items, shop)
             pagination_a = shop_search_result.find_elements_by_css_selector('.pagination-mini>a')
+            next_page = False
             for a in pagination_a:
                 if a.text=='下一页':
                     if not a.get_attribute('class'):
-                        rest()
+                        next_page =True
                         driver.execute_script('arguments[0].click();', a)
-                    else:
-                        next_page = False
+                        rest()
 
     def get_tmall_shop_items(self, shop):
-        '获取淘宝店铺中的商品及其价格'
+        '获取天猫店铺中的商品及其价格'
         driver = self.driver
         driver.get(shop.get_list_url())
+        rest()
         shop_search_result = driver.find_elements_by_id('J_ShopSearchResult')[0]
         if shop.keyword:
-            rest()
             input_keyword = shop_search_result.find_elements_by_name('keyword')[0]
             input_keyword.send_keys(shop.keyword)
             input_keyword.send_keys(Keys.RETURN)
+            rest()
         next_page = True
         while next_page:
             shop_search_result = driver.find_elements_by_id('J_ShopSearchResult')[0]
@@ -104,8 +104,8 @@ class TaoBaoVisitor():
             for a in pagination_a:
                 if a.text=='>':
                     next_page = True
-                    rest()
                     driver.execute_script('arguments[0].click();', a)
+                    rest()
         
     def collect_item_datas(self, items, shop):
         '收集商品数据并保存至数据库'
@@ -113,6 +113,7 @@ class TaoBaoVisitor():
         new_records = []
         for item in items:
             item_id = item.get_attribute('data-id')
+            print(item_id)
             if not TaobaoItem.objects.filter(id=item_id).exists():
                 new_items.append(TaobaoItem(
                     id=item_id,
@@ -147,19 +148,10 @@ def add_shop(url, keyword=None):
         print('无法找到该店铺')
 
 
-def send_email(title, message):
-    send_mail(
-        title,
-        message,
-        'admin@fossen.cn',
-        ['fossen@fossen.cn']
-    )#在setting.py中定义邮箱与密码
-
-
 if __name__ == "__main__":
     try:
         v = TaoBaoVisitor()
         v.get_all_items()
     except Exception as e:
-        send_email('淘宝爬虫出错', traceback.format_exc())
+        traceback.format_exc()
     v.quit()
