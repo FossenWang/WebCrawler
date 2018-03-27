@@ -1,10 +1,10 @@
 from time import sleep
-from random import uniform
-import os, sys, requests, re, traceback
+import os, sys, re, traceback, random, requests
 
 from selenium.webdriver.chrome.webdriver import WebDriver as Chrome
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.common.keys import Keys
+from bs4 import BeautifulSoup
 
 from django import setup
 from django.utils import timezone
@@ -15,11 +15,14 @@ if __name__ == "__main__":
 
 from storage.models import TaobaoShop, TaobaoItem, TaobaoItemRecord
 
-# driver.execute_script('window.open()')
-# driver.window_handles
 
-def rest(rest=(3, 7)):
-    sleep(uniform(*rest))
+headers = {'user-agent':'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2785.104 Safari/537.36 Core/1.53.4620.400 QQBrowser/9.7.13014.400'}
+
+
+def rest(rest=(5, 20)):
+    t = random.uniform(*rest)
+    print('休息: %ds'%t)
+    sleep(t)
 
 
 class TaoBaoVisitor():
@@ -113,7 +116,6 @@ class TaoBaoVisitor():
         new_records = []
         for item in items:
             item_id = item.get_attribute('data-id')
-            print(item_id)
             if not TaobaoItem.objects.filter(id=item_id).exists():
                 new_items.append(TaobaoItem(
                     id=item_id,
@@ -140,12 +142,49 @@ def add_shop(url, keyword=None):
     match = re.search(r'shopId=([0-9]*)', r.text)
     if match:
         shop_id = int(match.group().replace('shopId=', ''))
-        shop_name = re.search(r'<title>((.|\n)*)</title>',r.text).group().split('-')[1]
+        shop_name = re.search(r'<title>([.\n]*)</title>',r.text).group().split('-')[1]
         shop = TaobaoShop(id=shop_id, name=shop_name, url=url, keyword=keyword)
         shop.save()
         return shop
     else:
         print('无法找到该店铺')
+
+
+def get_url_and_cookies(shop):
+    chrome_options = ChromeOptions()
+    chrome_options.set_headless()
+    driver = Chrome(chrome_options=chrome_options)
+    driver.get(shop.get_list_url())
+
+    shop_asyn_search = driver.find_elements_by_id('J_ShopAsynSearchURL')[0]
+    asyn_search_url = shop.url + shop_asyn_search.get_attribute('value') \
+    + '&callback=jsonp' + str(random.randint(160,200))
+    asyn_search_urls = [asyn_search_url]
+
+    page_info = driver.find_elements_by_css_selector('.pagination-mini .page-info')[0].text
+    for i in range(2, int(page_info.split('/')[1])+1):
+        asyn_search_urls.append(asyn_search_url+'&pageNo='+str(i))
+
+    full_cookies = driver.get_cookies()
+    driver.quit()
+    rest()
+    return asyn_search_urls, {c['name']:c['value'] for c in full_cookies}
+
+
+def asyn_search(shop):
+    asyn_search_urls, cookies = get_url_and_cookies(shop)
+    headers['referer'] = shop.get_list_url()
+    for url in asyn_search_urls:
+        print('爬取网站中：%s'%url)
+        r = requests.get(url, headers=headers, cookies=cookies)
+        soup = BeautifulSoup(r.text.replace('\\',''))
+        items = soup.find_all(class_='item')
+        for item in items:
+            item_id = item['data-id']
+            name = item.find(class_='item-name').text.replace(' ','')
+            price = float(item.find(class_='c-price').text.replace(' ',''))
+            print(item_id, name, price)
+        rest()
 
 
 if __name__ == "__main__":
