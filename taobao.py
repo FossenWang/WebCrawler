@@ -1,5 +1,5 @@
 from time import sleep
-import os, sys, re, traceback, random, requests
+import os, re, traceback, random, requests
 
 from selenium.webdriver.chrome.webdriver import WebDriver as Chrome
 from selenium.webdriver.chrome.options import Options as ChromeOptions
@@ -19,7 +19,7 @@ from storage.models import TaobaoShop, TaobaoItem, TaobaoItemRecord
 headers = {'user-agent':'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2785.104 Safari/537.36 Core/1.53.4620.400 QQBrowser/9.7.13014.400'}
 
 
-def rest(rest=(5, 20)):
+def rest(rest=(10, 20)):
     t = random.uniform(*rest)
     print('休息: %ds'%t)
     sleep(t)
@@ -192,5 +192,5 @@ if __name__ == "__main__":
         v = TaoBaoVisitor()
         v.get_all_items()
     except Exception as e:
-        traceback.format_exc()
+        print(traceback.format_exc())
     v.quit()
