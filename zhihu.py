@@ -1,19 +1,12 @@
-from time import sleep
 from datetime import datetime
-import os, sys, random, requests, traceback
+import requests, traceback
 
 from bs4 import BeautifulSoup
-
-
-from django import setup
 from django.utils import timezone
-from django.core.mail import send_mail
+from common import setup_django, send_email, rest
 
 if __name__ == "__main__":
-    os.chdir('/usr/fossen/website/WebCrawler')
-    sys.path.append(os.getcwd())
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "storage.settings")
-    setup()
+    setup_django()
 
 from storage.models import ZhihuPeople, ZhihuArticle, ZhihuQuestion, ZhihuAnswer
 
@@ -23,19 +16,6 @@ headers = {
     'authorization':'oauth c3cef7c66a1843f8b3a9e6a1e3160e20'
     }
 
-
-def rest(rest=(1, 5)):
-    t = random.uniform(*rest)
-    print('休息: %ds'%t)
-    sleep(t)
-
-def send_email(title, message):
-    send_mail(
-        title,
-        message,
-        'admin@fossen.cn',
-        ['fossen@fossen.cn']
-    )#在setting.py中定义邮箱与密码
 
 class ZhihuVisitor():
     def __init__(self):
@@ -64,7 +44,7 @@ class ZhihuVisitor():
             newest_created = timezone.make_aware(datetime.strptime(time_str, '%Y-%m-%dT%H:%M:%S.%fZ'))
             first = author.zhihuarticle_set.all()[0]
             if newest_created <= first.created:
-                print('暂未更新')
+                print('文章暂未更新')
                 return
         except IndexError:
             pass
@@ -116,7 +96,7 @@ class ZhihuVisitor():
             newest_created = timezone.make_aware(datetime.strptime(time_str, '%Y-%m-%dT%H:%M:%S.%fZ'))
             first = author.zhihuanswer_set.all()[0]
             if newest_created <= first.created:
-                print('暂未更新')
+                print('回答暂未更新')
                 return
         except IndexError:
             pass
